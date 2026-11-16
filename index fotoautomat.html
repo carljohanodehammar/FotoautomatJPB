@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fotoautomat - Jönköping Par Bricole</title>
+<style>
+  :root {
+    --paper: #f5f1e8;
+    --card: #fffdf8;
+    --ink: #26221d;
+    --muted: #6b6257;
+    --gold: #b8860b;
+    --gold-dark: #8f6808;
+    --line: #dcd3c1;
+    --danger: #a63a2b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    font-size: 18px;
+    line-height: 1.45;
+    display: flex;
+    flex-direction: column;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 20px;
+  }
+  .view {
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+  .view[hidden] { display: none; }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: clamp(24px, 3.4vw, 34px);
+    margin: 0;
+    text-wrap: balance;
+  }
+  #logo { width: min(440px, 80vw); height: auto; }
+  #logo-fallback {
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 36px;
+    color: var(--gold);
+    margin: 0;
+  }
+  .steps {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--gold);
+    border-radius: 6px;
+    padding: 18px 28px 18px 48px;
+    margin: 4px 0;
+    text-align: left;
+    max-width: 560px;
+  }
+  .steps li { margin: 6px 0; }
+
+  button {
+    font: inherit;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    padding: 12px 24px;
+    cursor: pointer;
+  }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .btn-primary { background: var(--ink); color: #fff; font-size: 22px; padding: 14px 34px; }
+  .btn-primary:hover:not(:disabled) { background: #000; }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .btn-secondary:hover:not(:disabled) { background: #ebe5d6; }
+  .btn-quiet { background: transparent; color: var(--muted); font-weight: 400; font-size: 16px; text-decoration: underline; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Portrait frame that shows exactly what ends up in the saved picture. */
+  .stage {
+    position: relative;
+    height: min(44vh, 540px);
+    aspect-ratio: 2 / 3;
+    background: #111;
+    border: 4px solid var(--card);
+    outline: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .stage video, .stage canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .stage video { transform: scaleX(-1); } /* mirror the live view only */
+  .stage video[hidden], .stage canvas[hidden], #countdown[hidden] { display: none; }
+  #countdown {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, serif;
+    font-size: 160px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+  }
+
+  .step { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+  .step[hidden] { display: none; }
+  label[for="name"] { font-size: 18px; }
+  #name {
+    font: inherit;
+    font-size: 24px;
+    text-align: center;
+    width: min(460px, 100%);
+    padding: 10px 14px;
+    border: 2px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+  }
+  .consent {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    text-align: left;
+    max-width: 560px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 18px;
+    cursor: pointer;
+  }
+  .consent input { width: 26px; height: 26px; flex: none; margin: 2px 0 0; accent-color: var(--gold-dark); }
+  .consent a { color: var(--gold-dark); }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  #status { min-height: 1.5em; margin: 0; color: var(--muted); }
+  #status.error { color: var(--danger); font-weight: 600; }
+  #done-file { font-family: Consolas, monospace; background: var(--card); border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; }
+
+  footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    font-size: 14px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+  }
+  footer button { font-size: 14px; padding: 4px 12px; font-weight: 400; }
+</style>
+</head>
+<body>
+
+<main>
+  <!-- Welcome -->
+  <section id="view-welcome" class="view">
+    <img id="logo" src="logga.png" alt="Jönköping Par Bricole">
+    <p id="logo-fallback" hidden>Jönköping Par Bricole</p>
+    <h1>Ta ditt nya foto till medlemssystemet här</h1>
+    <ol class="steps">
+      <li>Klicka på <strong>Börja här</strong> nedan.</li>
+      <li>Skriv in ditt fullständiga namn i rutan.</li>
+      <li>Ställ dig framför kameran. En nedräkning på 3 sekunder startar.</li>
+      <li>Förhandsgranska bilden, kryssa i godkännandet och spara, eller ta om bilden.</li>
+    </ol>
+    <button id="btn-begin" class="btn-primary">Börja här</button>
+  </section>
+
+  <!-- Camera, name and review -->
+  <section id="view-photo" class="view" hidden>
+    <h1>Medlemskortsfoto</h1>
+    <div class="stage">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="preview" hidden></canvas>
+      <div id="countdown" hidden></div>
+    </div>
+
+    <div id="step-name" class="step">
+      <label for="name">Skriv ditt fullständiga namn:</label>
+      <input id="name" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="80">
+      <button id="btn-start" class="btn-primary">Starta 3 sekunders nedräkning</button>
+    </div>
+
+    <div id="step-review" class="step" hidden>
+      <label class="consent">
+        <input id="consent" type="checkbox">
+        <span>Jag godkänner att den här bilden används i medlemssystemet PBA, i enlighet med Jönköping Par Bricoles <span id="policy-word">Integritetspolicy</span>.</span>
+      </label>
+      <div class="row">
+        <button id="btn-save" class="btn-primary" disabled>Godkänn och spara</button>
+        <button id="btn-retake" class="btn-secondary">Ta om bild</button>
+      </div>
+    </div>
+
+    <p id="status" role="status" aria-live="polite"></p>
+    <button id="btn-home" class="btn-quiet">Tillbaka till start</button>
+  </section>
+
+  <!-- Confirmation -->
+  <section id="view-done" class="view" hidden>
+    <h1>Tack <span id="done-name"></span>!</h1>
+    <p>Din bild har sparats som <span id="done-file"></span> i mappen Hämtade filer.</p>
+    <button id="btn-next" class="btn-primary">Nästa person</button>
+  </section>
+</main>
+
+<footer>
+  <span>Bilden behandlas bara i den här webbläsaren och sparas på den här datorn. Inget skickas över nätet.</span>
+  <button id="btn-fullscreen" class="btn-secondary">Helskärm</button>
+</footer>
+
+<script>
+"use strict";
+
+const CONFIG = {
+  outputWidth: 300,        // portrait size expected by PBA
+  outputHeight: 450,
+  jpegQuality: 1.0,
+  countdownSeconds: 3,
+  // true:  "Åsa Öberg" is saved as "Asa_Oberg.jpg" (same as the original program)
+  // false: "Åsa Öberg" is saved as "Åsa Öberg.jpg"
+  asciiFilenames: true,
+  // Set to the address of the privacy policy to turn the word into a link.
+  policyUrl: "",
+  doneTimeoutMs: 8000
+};
+
+// <metadata>
+// Pure functions that write the name into the JPEG file. No DOM access here.
+
+function utf8Bytes(text) {
+  return new TextEncoder().encode(text);
+}
+
+function utf16leBytes(text) {
+  const out = new Uint8Array((text.length + 1) * 2); // includes NUL terminator
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    out[i * 2] = code & 0xff;
+    out[i * 2 + 1] = code >> 8;
+  }
+  return out;
+}
+
+function asciiZ(text) {
+  const body = utf8Bytes(text);
+  const out = new Uint8Array(body.length + 1);
+  out.set(body);
+  return out;
+}
+
+function exifDate(date) {
+  const p = (n) => String(n).padStart(2, "0");
+  return date.getFullYear() + ":" + p(date.getMonth() + 1) + ":" + p(date.getDate()) + " " +
+         p(date.getHours()) + ":" + p(date.getMinutes()) + ":" + p(date.getSeconds());
+}
+
+function xmlEscape(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function wrapSegment(marker, header, payload) {
+  const length = 2 + header.length + payload.length;
+  if (length > 0xffff) throw new Error("Metadata segment too large");
+  const out = new Uint8Array(2 + length);
+  out[0] = 0xff;
+  out[1] = marker;
+  out[2] = length >> 8;
+  out[3] = length & 0xff;
+  out.set(header, 4);
+  out.set(payload, 4 + header.length);
+  return out;
+}
+
+// EXIF block. The XP* tags are what Windows Explorer shows under Properties > Details.
+function buildExifSegment(name, comment, date) {
+  const TYPE_BYTE = 1, TYPE_ASCII = 2;
+  const entries = [
+    { tag: 0x010e, type: TYPE_ASCII, data: asciiZ(name) },                   // ImageDescription
+    { tag: 0x0131, type: TYPE_ASCII, data: asciiZ("Fotoautomat JPB") },      // Software
+    { tag: 0x0132, type: TYPE_ASCII, data: asciiZ(exifDate(date)) },         // DateTime
+    { tag: 0x9c9b, type: TYPE_BYTE, data: utf16leBytes(name) },              // XPTitle
+    { tag: 0x9c9c, type: TYPE_BYTE, data: utf16leBytes(comment) },           // XPComment
+    { tag: 0x9c9f, type: TYPE_BYTE, data: utf16leBytes(name) }               // XPSubject
+  ]; // must stay sorted by tag
+
+  const ifdOffset = 8;
+  const ifdSize = 2 + entries.length * 12 + 4;
+  let dataOffset = ifdOffset + ifdSize;
+  let total = dataOffset;
+  for (const e of entries) {
+    if (e.data.length > 4) total += e.data.length + (e.data.length % 2);
+  }
+
+  const tiff = new Uint8Array(total);
+  const view = new DataView(tiff.buffer);
+  tiff[0] = 0x49; tiff[1] = 0x49;          // "II" = little endian
+  view.setUint16(2, 42, true);
+  view.setUint32(4, ifdOffset, true);
+  view.setUint16(ifdOffset, entries.length, true);
+
+  entries.forEach((e, i) => {
+    const at = ifdOffset + 2 + i * 12;
+    view.setUint16(at, e.tag, true);
+    view.setUint16(at + 2, e.type, true);
+    view.setUint32(at + 4, e.data.length, true);
+    if (e.data.length <= 4) {
+      tiff.set(e.data, at + 8);
+    } else {
+      view.setUint32(at + 8, dataOffset, true);
+      tiff.set(e.data, dataOffset);
+      dataOffset += e.data.length + (e.data.length % 2);
+    }
+  });
+  // Next-IFD pointer is left as zero.
+
+  return wrapSegment(0xe1, new Uint8Array([0x45, 0x78, 0x69, 0x66, 0, 0]), tiff); // "Exif\0\0"
+}
+
+// XMP block, read by most photo software regardless of platform.
+function buildXmpSegment(name, comment) {
+  const n = xmlEscape(name), c = xmlEscape(comment);
+  const xml =
+    '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>' +
+    '<x:xmpmeta xmlns:x="adobe:ns:meta/">' +
+    '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' +
+    '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" ' +
+    'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/">' +
+    '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">' + n + '</rdf:li></rdf:Alt></dc:title>' +
+    '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">' + c + '</rdf:li></rdf:Alt></dc:description>' +
+    '<Iptc4xmpExt:PersonInImage><rdf:Bag><rdf:li>' + n + '</rdf:li></rdf:Bag></Iptc4xmpExt:PersonInImage>' +
+    '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
+  return wrapSegment(0xe1, asciiZ("http://ns.adobe.com/xap/1.0/"), utf8Bytes(xml));
+}
+
+// Returns a new JPEG with the metadata segments placed after the JFIF header.
+function addMetadataToJpeg(jpeg, name, comment, date) {
+  if (jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error("Not a JPEG file");
+  let pos = 2;
+  while (jpeg[pos] === 0xff && jpeg[pos + 1] === 0xe0) {   // skip APP0 (JFIF)
+    pos += 2 + ((jpeg[pos + 2] << 8) | jpeg[pos + 3]);
+  }
+  const exif = buildExifSegment(name, comment, date);
+  const xmp = buildXmpSegment(name, comment);
+  const out = new Uint8Array(jpeg.length + exif.length + xmp.length);
+  out.set(jpeg.subarray(0, pos), 0);
+  out.set(exif, pos);
+  out.set(xmp, pos + exif.length);
+  out.set(jpeg.subarray(pos), pos + exif.length + xmp.length);
+  return out;
+}
+
+// Turns the typed name into a file name that Windows accepts.
+function fileNameFromName(name, asciiOnly) {
+  let s = name.normalize("NFC").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim();
+  if (asciiOnly) {
+    s = s.normalize("NFD").replace(/[̀-ͯ]/g, "")   // å -> a, ö -> o, é -> e
+         .replace(/[^\x20-\x7e]/g, "")
+         .replace(/ /g, "_");
+  }
+  s = s.replace(/[. ]+$/, "");
+  return (s || "bild") + ".jpg";
+}
+// </metadata>
+
+if (typeof document !== "undefined") {
+  const $ = (id) => document.getElementById(id);
+  const views = { welcome: $("view-welcome"), photo: $("view-photo"), done: $("view-done") };
+  const video = $("video"), preview = $("preview"), countdownEl = $("countdown");
+  const nameInput = $("name"), consent = $("consent"), statusEl = $("status");
+  const btnStart = $("btn-start"), btnSave = $("btn-save");
+
+  let stream = null;
+  let capturedCanvas = null;
+  let currentName = "";
+  let countdownTimer = null;
+  let doneTimer = null;
+
+  function showView(key) {
+    for (const [k, el] of Object.entries(views)) el.hidden = k !== key;
+  }
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text;
+    statusEl.classList.toggle("error", Boolean(isError));
+  }
+
+  function resetForm() {
+    clearTimeout(countdownTimer);
+    clearTimeout(doneTimer);
+    capturedCanvas = null;
+    currentName = "";
+    nameInput.value = "";
+    nameInput.disabled = false;
+    btnStart.disabled = false;
+    consent.checked = false;
+    btnSave.disabled = true;
+    countdownEl.hidden = true;
+    preview.hidden = true;
+    video.hidden = false;
+    $("step-name").hidden = false;
+    $("step-review").hidden = true;
+    setStatus("");
+  }
+
+  async function startCamera() {
+    if (stream && stream.active) return true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus("Den här webbläsaren ger inte åtkomst till kameran. Sidan måste öppnas via https.", true);
+      return false;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      return true;
+    } catch (err) {
+      console.error("Camera error:", err);
+      setStatus("Ingen kontakt med kameran. Tillåt kameran i webbläsaren och försök igen.", true);
+      return false;
+    }
+  }
+
+  // Unsharp mask, same weights as the original program: 1.5 * image - 0.5 * blurred.
+  function sharpen(canvas) {
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (typeof ctx.filter !== "string") return; // not supported, keep the image as it is
+    const blurred = document.createElement("canvas");
+    blurred.width = canvas.width;
+    blurred.height = canvas.height;
+    const bctx = blurred.getContext("2d", { willReadFrequently: true });
+    bctx.filter = "blur(2px)";
+    bctx.drawImage(canvas, 0, 0);
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const soft = bctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const px = image.data; // Uint8ClampedArray clamps to 0..255 on assignment
+    for (let i = 0; i < px.length; i += 4) {
+      px[i] = 1.5 * px[i] - 0.5 * soft[i];
+      px[i + 1] = 1.5 * px[i + 1] - 0.5 * soft[i + 1];
+      px[i + 2] = 1.5 * px[i + 2] - 0.5 * soft[i + 2];
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+
+  // Grabs the current frame, crops it centred to 2:3 and scales it to the output size.
+  function captureFrame() {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return null;
+    const aspect = CONFIG.outputWidth / CONFIG.outputHeight;
+    let sw = vw, sh = vh;
+    if (vw / vh > aspect) sw = Math.round(vh * aspect);
+    else sh = Math.round(vw / aspect);
+    const sx = Math.floor((vw - sw) / 2), sy = Math.floor((vh - sh) / 2);
+
+    const crop = document.createElement("canvas");
+    crop.width = sw;
+    crop.height = sh;
+    crop.getContext("2d", { willReadFrequently: true }).drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    sharpen(crop);
+
+    const out = document.createElement("canvas");
+    out.width = CONFIG.outputWidth;
+    out.height = CONFIG.outputHeight;
+    const ctx = out.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(crop, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  function beginCountdown() {
+    const name = nameInput.value.replace(/\s+/g, " ").trim();
+    if (!name) {
+      setStatus("Skriv in ditt namn innan du tar bilden.", true);
+      nameInput.focus();
+      return;
+    }
+    if (!stream || !stream.active) {
+      setStatus("Ingen kontakt med kameran.", true);
+      return;
+    }
+    currentName = name;
+    btnStart.disabled = true;
+    nameInput.disabled = true;
+    setStatus("Gör dig redo!");
+    tick(CONFIG.countdownSeconds);
+  }
+
+  function tick(remaining) {
+    if (remaining > 0) {
+      countdownEl.textContent = String(remaining);
+      countdownEl.hidden = false;
+      countdownTimer = setTimeout(tick, 1000, remaining - 1);
+    } else {
+      countdownEl.hidden = true;
+      showPreview();
+    }
+  }
+
+  function showPreview() {
+    capturedCanvas = captureFrame();
+    if (!capturedCanvas) {
+      setStatus("Kunde inte ta någon bild från kameran.", true);
+      btnStart.disabled = false;
+      nameInput.disabled = false;
+      return;
+    }
+    preview.width = capturedCanvas.width;
+    preview.height = capturedCanvas.height;
+    preview.getContext("2d").drawImage(capturedCanvas, 0, 0);
+    video.hidden = true;
+    preview.hidden = false;
+    $("step-name").hidden = true;
+    $("step-review").hidden = false;
+    consent.checked = false;
+    btnSave.disabled = true;
+    setStatus("Är du nöjd med bilden, " + currentName + "?");
+  }
+
+  function retake() {
+    capturedCanvas = null;
+    preview.hidden = true;
+    video.hidden = false;
+    $("step-review").hidden = true;
+    $("step-name").hidden = false;
+    btnStart.disabled = false;
+    nameInput.disabled = false;
+    consent.checked = false;
+    btnSave.disabled = true;
+    setStatus("Redo att ta om bilden.");
+  }
+
+  function canvasToJpegBytes(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject(new Error("JPEG encoding failed"));
+        resolve(new Uint8Array(await blob.arrayBuffer()));
+      }, "image/jpeg", CONFIG.jpegQuality);
+    });
+  }
+
+  async function save() {
+    if (!capturedCanvas || !consent.checked) return;
+    btnSave.disabled = true;
+    try {
+      const now = new Date();
+      const stamp = exifDate(now).slice(0, 16).replace(":", "-").replace(":", "-");
+      const comment = "Godkänt för användning i medlemssystemet PBA enligt Jönköping Par Bricoles integritetspolicy, " + stamp;
+      const plain = await canvasToJpegBytes(capturedCanvas);
+      const tagged = addMetadataToJpeg(plain, currentName, comment, now);
+      const fileName = fileNameFromName(currentName, CONFIG.asciiFilenames);
+
+      const url = URL.createObjectURL(new Blob([tagged], { type: "image/jpeg" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      $("done-name").textContent = currentName;
+      $("done-file").textContent = fileName;
+      showView("done");
+      doneTimer = setTimeout(goHome, CONFIG.doneTimeoutMs);
+    } catch (err) {
+      console.error("Save error:", err);
+      setStatus("Bilden kunde inte sparas. Försök igen.", true);
+      btnSave.disabled = !consent.checked;
+    }
+  }
+
+  function goHome() {
+    resetForm();
+    showView("welcome");
+  }
+
+  // Wiring
+  $("btn-begin").addEventListener("click", async () => {
+    resetForm();
+    showView("photo");
+    await startCamera();
+    nameInput.focus();
+  });
+  btnStart.addEventListener("click", beginCountdown);
+  nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") beginCountdown(); });
+  consent.addEventListener("change", () => { btnSave.disabled = !consent.checked; });
+  btnSave.addEventListener("click", save);
+  $("btn-retake").addEventListener("click", retake);
+  $("btn-home").addEventListener("click", goHome);
+  $("btn-next").addEventListener("click", goHome);
+  $("btn-fullscreen").addEventListener("click", () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  });
+
+  $("logo").addEventListener("error", () => {
+    $("logo").hidden = true;
+    $("logo-fallback").hidden = false;
+  });
+
+  if (CONFIG.policyUrl) {
+    const word = $("policy-word");
+    const a = document.createElement("a");
+    a.href = CONFIG.policyUrl;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = word.textContent;
+    word.replaceWith(a);
+  }
+}
+</script>
+</body>
+</html>
